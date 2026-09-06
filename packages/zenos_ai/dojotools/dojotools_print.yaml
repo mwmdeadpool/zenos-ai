@@ -208,6 +208,73 @@ script:
         _text_w: "{{ 740 if _final_orient in ['portrait', 'reverse-portrait'] else 1140 }}"
         _text_h: "{{ 1140 if _final_orient in ['portrait', 'reverse-portrait'] else 740 }}"
 
+    # ── printing prerequisites ───────────────────────────────────────────────
+    # ipp_printing (Rudd-O) and simpleimageraster are custom integrations. Core
+    # HA's built-in `ipp` is a dependency of the former but is sensor-only and
+    # registers no actions, so "I enabled IPP" is the natural wrong turn and
+    # leaves every print mode dying on ServiceNotFound halfway through.
+    #
+    # The check has to be a registry lookup. has_service() is undefined in the
+    # HA 2026.9 template engine and does NOT fail loudly -- the condition
+    # template raises, resolves false, and the call proceeds exactly as if
+    # unguarded. continue_on_error does not help either: HA classes a missing
+    # action as misconfiguration and deliberately declines to suppress it.
+    # zen_sutra_ha_api mode=services filters server-side and, since v5.2.3,
+    # reports api_ok so "checked, not there" is distinguishable from "couldn't
+    # check at all".
+    #
+    # Fails OPEN on purpose. If the lookup itself cannot run -- ha_bearer
+    # unset, or set without its "Bearer " scheme, which is a real and quiet
+    # misconfiguration -- proceeding leaves today's behaviour intact, whereas
+    # failing closed would break printing on an install where printing works.
+    - if:
+        - condition: template
+          value_template: "{{ _mode in ['test_page', 'print_text', 'print_image', 'list_jobs'] }}"
+      then:
+        - action: script.zen_sutra_ha_api
+          continue_on_error: true
+          data:
+            mode: services
+            has_service: ipp_printing.print
+          response_variable: _ipp_chk
+        - action: script.zen_sutra_ha_api
+          continue_on_error: true
+          data:
+            mode: services
+            has_service: simpleimageraster.draw
+          response_variable: _ras_chk
+        - variables:
+            _print_missing: >-
+              {%- set ns = namespace(m=[]) -%}
+              {%- if _ipp_chk is mapping and _ipp_chk.get('api_ok', false)
+                     and not (_ipp_chk.get('found', 'false') | string | lower == 'true') -%}
+                {%- set ns.m = ns.m + ['ipp_printing'] -%}
+              {%- endif -%}
+              {%- if _mode != 'list_jobs' and _ras_chk is mapping and _ras_chk.get('api_ok', false)
+                     and not (_ras_chk.get('found', 'false') | string | lower == 'true') -%}
+                {%- set ns.m = ns.m + ['simpleimageraster'] -%}
+              {%- endif -%}
+              {{ ns.m }}
+        - if:
+            - condition: template
+              value_template: "{{ _print_missing | count > 0 }}"
+          then:
+            - variables:
+                final_response:
+                  status: error
+                  mode: "{{ _mode }}"
+                  message: >-
+                    Print Shop is unavailable: {{ _print_missing | join(' and ') }}
+                    {{ 'is' if _print_missing | count == 1 else 'are' }} not installed.
+                    Home Assistant's built-in `ipp` integration only provides printer
+                    sensors and registers no actions -- Print Shop additionally needs
+                    the ipp_printing and simpleimageraster custom integrations from
+                    HACS, each of which also needs a config entry created before its
+                    actions appear.
+                  missing_integrations: "{{ _print_missing }}"
+            - stop: Return
+              response_variable: final_response
+
     - choose:
 
       # ── configure ────────────────────────────────────────────────────────────
