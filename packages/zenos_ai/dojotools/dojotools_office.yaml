@@ -573,7 +573,29 @@ script:
               if cc_list else {},\n    {\"bcc\": bcc_list} if bcc_list else {},\n    {\"importance\":
               importance_norm} if importance_norm != \"normal\" else {}\n  )\n  | tojson\n}}"
             mail_data: '{{ mail_data_json | from_json }}'
+        # notify.ms365_mail_inbox is registered by the MS365 Mail integration,
+        # alongside sensor.ms365_inbox that every other branch of this tool
+        # reads. Absent that integration the notify target does not exist and
+        # HA raises ServiceNotFound, which continue_on_error deliberately does
+        # not suppress. Gate on the sibling sensor rather than the action:
+        # has_service() was removed from the template engine in HA 2026.9, so a
+        # has_service() guard here silently renders false and never fires.
+        # Checked ahead of all_safe on purpose -- folding it into that condition
+        # would report "whitelist not configured" for a missing integration.
         - choose:
+          - conditions:
+            - condition: template
+              value_template: '{{ expand(''sensor.ms365_inbox'') | count == 0 }}'
+            sequence:
+            - variables:
+                final_response: >-
+                  {{ {'status': 'error', 'action_type': action_type | default(''), 'message': 'Mail send unavailable: sensor.ms365_inbox does not exist, so the MS365 Mail integration is not set up on this instance and notify.ms365_mail_inbox is not registered. See docs/getting_started/notification_routing.md.'} | tojson }}
+            - variables:
+                final_response: "{{ (final_response if final_response is mapping else (final_response | from_json)) | combine({'caller_token': caller_token | default('')}) | tojson }}"
+            - stop: Pass response variables back to LLM
+              response_variable: final_response
+              enabled: true
+            - set_conversation_response: '{{ final_response }}'
           - conditions:
             - condition: template
               value_template: '{{ all_safe }}'
