@@ -2367,6 +2367,17 @@ script:
             action_type: "{{ _wiki_action }}"
             stack: wiki
             input_json: "{{ input_json_norm }}"
+            # zen_dojotools_filecabinet reads these as TOP-LEVEL fields
+            # (see dojotools_filecabinet.yaml: `query: "{{ query | default('', true) }}"`).
+            # Forwarding only input_json silently dropped them: mode=find returned every
+            # page for every query, with status:success. A failing search that looks like
+            # a working one is worse than an error.
+            query: "{{ query | default('', true) }}"
+            path: "{{ path | default('', true) }}"
+            anchor_type: "{{ anchor_type | default('label', true) }}"
+            anchor_ids: "{{ anchor_ids | default('', true) }}"
+            path_prefix: "{{ path_prefix | default('', true) }}"
+            tags_json: "{{ tags | default('', true) }}"
             caller_token: "{{ caller_token_norm }}"
         - variables:
             result: >-

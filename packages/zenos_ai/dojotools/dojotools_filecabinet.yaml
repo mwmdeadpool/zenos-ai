@@ -3944,7 +3944,13 @@ script:
     alias: Zen DojoTools FileCabinet
     description: >
       Knowledge surface — stack=cabinet (always available) and stack=wiki (optional, requires
-      zen_sutra_wikijs). Cross-stack copy/move via destination_stack.
+      zen_sutra_wikijs).
+      USE stack=wiki (or stack=all) FOR ANY QUESTION ABOUT THE HOUSE OR THE
+      INFRASTRUCTURE: which host or server a service runs on, what is deployed where,
+      ports, network topology, Traefik/Cloudflare routes, and per-room runbooks and
+      quirks. Those pages live ONLY in the wiki stack — searching the default
+      stack=cabinet will find nothing and you must not answer from general knowledge
+      instead. Cross-stack copy/move via destination_stack.
       Cabception: drawer keys with / form nested trees — get returns subdrawers+has_children,
       move/delete/copy cascade to all children, child writes verified before delete.
       Use mode=help for field reference.
@@ -3993,7 +3999,7 @@ script:
             - weave_save
         default: list
       stack:
-        description: "Backend: cabinet (FileCabinet, default) | wiki (WikiJS) | all (read-only aggregate)."
+        description: "Backend: cabinet (FileCabinet, default) | wiki (WikiJS) | all (read-only aggregate). Infrastructure and house knowledge — which host runs a service, ports, routes, room runbooks — is in wiki, NOT cabinet. Use wiki or all for those."
         required: false
         selector:
           select:
